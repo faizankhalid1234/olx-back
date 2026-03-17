@@ -5,20 +5,7 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get user profile
-router.get('/:id', async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id).select('-password');
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Update user profile
+// Update user profile - MUST be before /:id to avoid "profile" being matched
 router.put('/profile', auth, async (req, res) => {
   try {
     const { name, phone, city } = req.body;
@@ -35,10 +22,31 @@ router.put('/profile', auth, async (req, res) => {
   }
 });
 
+// Get user profile
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!require('mongoose').Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+    const user = await User.findById(id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get user's ads
 router.get('/:id/ads', async (req, res) => {
   try {
-    const ads = await Ad.find({ seller: req.params.id, status: 'active' }).sort({ createdAt: -1 });
+    const { id } = req.params;
+    if (!require('mongoose').Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+    const ads = await Ad.find({ seller: id, status: 'active' }).sort({ createdAt: -1 });
     res.json(ads);
   } catch (error) {
     res.status(500).json({ message: error.message });

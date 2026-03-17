@@ -38,6 +38,19 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
+// Root fallback (for Cloud Run/Firebase)
+app.get('/', (req, res) => {
+  res.json({ message: 'OLX API', docs: '/api/health', version: '1.0' });
+});
+
+// 404 handler - must be last; returns consistent JSON for unmatched API routes
+app.use((req, res) => {
+  if (req.originalUrl.startsWith('/api')) {
+    return res.status(404).json({ message: 'API endpoint not found', code: 'NOT_FOUND' });
+  }
+  res.status(404).json({ message: 'Not found' });
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -86,10 +87,24 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get user's ads - MUST be before /:id to avoid "user" being matched as id
+router.get('/user/my-ads', auth, async (req, res) => {
+  try {
+    const ads = await Ad.find({ seller: req.user._id }).sort({ createdAt: -1 });
+    res.json(ads);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get single ad
 router.get('/:id', async (req, res) => {
   try {
-    const ad = await Ad.findById(req.params.id).populate('seller', 'name email phone city');
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid ad ID' });
+    }
+    const ad = await Ad.findById(id).populate('seller', 'name email phone city');
     
     if (!ad) {
       return res.status(404).json({ message: 'Ad not found' });
@@ -138,7 +153,11 @@ router.post('/', auth, upload.array('images', 5), async (req, res) => {
 // Update ad
 router.put('/:id', auth, upload.array('images', 5), async (req, res) => {
   try {
-    const ad = await Ad.findById(req.params.id);
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid ad ID' });
+    }
+    const ad = await Ad.findById(id);
     
     if (!ad) {
       return res.status(404).json({ message: 'Ad not found' });
@@ -175,7 +194,11 @@ router.put('/:id', auth, upload.array('images', 5), async (req, res) => {
 // Delete ad
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const ad = await Ad.findById(req.params.id);
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid ad ID' });
+    }
+    const ad = await Ad.findById(id);
     
     if (!ad) {
       return res.status(404).json({ message: 'Ad not found' });
@@ -189,16 +212,6 @@ router.delete('/:id', auth, async (req, res) => {
     await ad.save();
 
     res.json({ message: 'Ad deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get user's ads
-router.get('/user/my-ads', auth, async (req, res) => {
-  try {
-    const ads = await Ad.find({ seller: req.user._id }).sort({ createdAt: -1 });
-    res.json(ads);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
