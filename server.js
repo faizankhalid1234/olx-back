@@ -13,7 +13,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Only serve uploads locally - Vercel has read-only filesystem
+if (process.env.VERCEL !== '1') {
+  const uploadsPath = path.join(__dirname, 'uploads');
+  const fs = require('fs');
+  if (fs.existsSync(uploadsPath)) {
+    app.use('/uploads', express.static(uploadsPath));
+  }
+}
 
 // MongoDB Connection
 const mongoUri = process.env.MONGODB_URI;
@@ -51,6 +58,12 @@ app.use((req, res) => {
     return res.status(404).json({ message: 'API endpoint not found', code: 'NOT_FOUND' });
   }
   res.status(404).json({ message: 'Not found' });
+});
+
+// Global error handler - prevents serverless function crash
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ message: err.message || 'Internal server error' });
 });
 
 // Export for Vercel serverless; listen for local development

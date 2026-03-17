@@ -8,25 +8,34 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+const isVercel = process.env.VERCEL === '1';
+
+// Create uploads directory only when not on Vercel (read-only filesystem)
+let storage;
+if (isVercel) {
+  storage = multer.memoryStorage();
+} else {
+  const uploadsDir = path.join(__dirname, '../uploads');
+  try {
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+  } catch (err) {
+    console.warn('Could not create uploads directory:', err.message);
+  }
+  storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadsDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
 }
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
 const upload = multer({
-  storage: storage,
+  storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
@@ -125,7 +134,7 @@ router.post('/', auth, upload.array('images', 5), async (req, res) => {
   try {
     const { title, description, price, category, condition, city, address, sellerPhone } = req.body;
     
-    const images = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
+    const images = req.files ? req.files.filter(f => f.filename).map(file => `/uploads/${file.filename}`) : [];
 
     const ad = new Ad({
       title,
@@ -180,7 +189,7 @@ router.put('/:id', auth, upload.array('images', 5), async (req, res) => {
 
     // Handle new images
     if (req.files && req.files.length > 0) {
-      const newImages = req.files.map(file => `/uploads/${file.filename}`);
+      const newImages = req.files.filter(f => f.filename).map(file => `/uploads/${file.filename}`);
       ad.images = [...ad.images, ...newImages];
     }
 
